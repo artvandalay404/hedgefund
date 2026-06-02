@@ -110,6 +110,64 @@ class SystemState(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ── Phase 2: backtesting / validation tables (ADR-0008) ──────────────────────
+
+class PartitionCounter(Base):
+    """Monotonic trial counters per data partition (ADR-0008).
+
+    search_n counts every configuration evaluated against the IS/WF partition.
+    holdout_n counts holdout evaluations; must stay ≈ 1.
+    """
+    __tablename__ = "partition_counters"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    partition_name = Column(String(100), unique=True, nullable=False)
+    search_n = Column(Integer, nullable=False, default=0)
+    holdout_n = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class BacktestTrial(Base):
+    """One evaluated (strategy, params, partition) combination."""
+    __tablename__ = "backtest_trials"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_name = Column(String(100), nullable=False)
+    params_json = Column(Text, nullable=False)
+    partition_name = Column(String(100), nullable=False)
+    search_n_at_run = Column(Integer, nullable=False)
+    annualised_sharpe = Column(Float)
+    annualised_return = Column(Float)
+    max_drawdown = Column(Float)
+    n_trades = Column(Integer, nullable=False, default=0)
+    returns_json = Column(Text, nullable=False)   # JSON array of daily returns
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class HoldoutEval(Base):
+    """One-shot holdout evaluation result (ADR-0008).
+
+    holdout_n_at_eval must be 1 for the result to be trustworthy.
+    """
+    __tablename__ = "holdout_evals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy_name = Column(String(100), nullable=False)
+    params_json = Column(Text, nullable=False)
+    holdout_partition = Column(String(100), nullable=False)
+    holdout_n_at_eval = Column(Integer, nullable=False)
+    search_n_at_eval = Column(Integer, nullable=False)
+    annualised_sharpe = Column(Float)
+    annualised_return = Column(Float)
+    max_drawdown = Column(Float)
+    psr = Column(Float)
+    dsr = Column(Float)
+    n_trades = Column(Integer, default=0)
+    passed_gate = Column(Boolean)
+    notes = Column(Text)
+    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 # ── engine / session ──────────────────────────────────────────────────────────
 
 def _make_engine():

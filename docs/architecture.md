@@ -5,10 +5,10 @@ how the conceptual hedge-fund org chart maps onto **one orchestrated,
 mostly-deterministic pipeline** ([ADR-0002](adr/0002-hybrid-pipeline-architecture.md)):
 **LLMs reason, deterministic code decides and executes.**
 
-> **Legend.** Solid boxes = built (Phase 1 walking skeleton, [ADR-0007](adr/0007-build-sequencing-and-roadmap.md)).
-> Dashed boxes = designed but **not yet built** (quant backtest gate, qualitative
-> branch, agreement multiplier). Phase-1 trades **quant-solo only**; all paper
-> results are explicitly **not** track record until the backtest gate is passed.
+> **Legend.** Solid boxes = built (Phase 1 walking skeleton + Phase 2 quant edge gate, [ADR-0007](adr/0007-build-sequencing-and-roadmap.md)).
+> Dashed boxes = designed but **not yet built** (qualitative branch, agreement multiplier).
+> Phase-1/2 trades **quant-solo only**; the official paper track record opens only after
+> the strategy passes the rigorous backtest gate (run `scripts/evaluate_holdout.py`).
 
 ---
 
@@ -128,7 +128,7 @@ flowchart TB
     exec["Execution — broker.place_bracket_order<br/>entry + stop + target, broker-enforced"]
     attr[("Attribution buckets<br/>quant-solo · qual-solo · consensus<br/>tagged on every Trade")]
 
-    gate -->|"proposes (Phase 2)"| base
+    gate -->|"proposes (Phase 2 — built)"| base
     qthes -.->|"proposes (Phase 3)"| base
     kill --> exec --> attr
 
@@ -151,9 +151,17 @@ flowchart TB
 | Broker | `broker/alpaca.py` | Alpaca paper adapter |
 | Data | `data/market.py` | Daily bars from Alpaca |
 | Data | `data/universe.py` | S&P 100 universe (static snapshot; PIT membership is future) |
-| Persistence | `db/models.py` | SQLAlchemy: RunLog, Signal, Order, Position, Trade, EquityCurve, SystemState |
+| Persistence | `db/models.py` | SQLAlchemy: RunLog, Signal, Order, Position, Trade, EquityCurve, SystemState + BacktestTrial, PartitionCounter, HoldoutEval |
 | Reporting | `reporting/email_report.py` | Pre/post-market HTML digests via Resend |
 | Config | `config.py` | Settings, risk limits, logging |
+| Backtest | `backtest/engine.py` | Event-driven daily-bar backtester (point-in-time, honest stops, cost model) |
+| Backtest | `backtest/strategy.py` | StrategyBase + BreakoutStrategy (vectorised signal precomputation) |
+| Backtest | `backtest/metrics.py` | Annualised Sharpe, PSR, DSR (Bailey & de Prado), PBO, gate thresholds |
+| Backtest | `backtest/validation.py` | WalkForwardCV (expanding window + embargo), HoldoutEvaluator (one-shot) |
+| Backtest | `backtest/data.py` | yfinance historical bar loader with disk cache |
+| Backtest | `backtest/trial_log.py` | Monotonic partition trial counters + trial/holdout logging |
+| Scripts | `scripts/run_backtest.py` | Walk-forward search over param grid; logs every trial to DB |
+| Scripts | `scripts/evaluate_holdout.py` | Human-gated one-shot holdout evaluation; opens official track record |
 
 ---
 
