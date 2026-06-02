@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-06-01
 - Deciders: Satwik (Portfolio Manager)
+- Extended by: [ADR-0008](0008-validation-data-discipline.md) (validation-data discipline: trial accounting and data-tier gating)
 
 ## Context
 
