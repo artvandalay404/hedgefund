@@ -125,3 +125,5 @@ Five canonical triage roles, each using its default label string (`needs-triage`
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+Whenever an architectural change is made update block diagram under docs.
