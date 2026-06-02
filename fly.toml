@@ -1,32 +1,38 @@
-# Update `app` after running: fly launch --name hedgefund-<your-suffix>
-app = "hedgefund"
-primary_region = "iad"
+# fly.toml app configuration file generated for hedgefund-vandalay on 2026-06-02T12:44:59-06:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'hedgefund-vandalay'
+primary_region = 'iad'
 
 [build]
 
 [env]
-  TZ = "America/New_York"
-  PORT = "8080"
+  PORT = '8080'
+  TZ = 'America/New_York'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = "requests"
+    type = 'requests'
     hard_limit = 25
     soft_limit = 20
 
   [[http_service.checks]]
-    grace_period = "30s"
-    interval = "30s"
-    method = "GET"
-    path = "/health"
-    timeout = "10s"
+    interval = '30s'
+    timeout = '10s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

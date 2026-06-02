@@ -1,0 +1,17 @@
+# flyctl launch added from .gitignore
+**/.env
+**/*.pyc
+**/__pycache__
+**/*.egg-info
+**/dist
+**/build
+**/.pytest_cache
+**/.coverage
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+.pytest_cache/**/*
+fly.toml
