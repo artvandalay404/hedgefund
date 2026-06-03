@@ -6,7 +6,7 @@ mostly-deterministic pipeline** ([ADR-0002](adr/0002-hybrid-pipeline-architectur
 **LLMs reason, deterministic code decides and executes.**
 
 > **Legend.** Solid boxes = built (Phase 1 walking skeleton + Phase 2 quant edge gate, [ADR-0007](adr/0007-build-sequencing-and-roadmap.md)).
-> Dashed boxes = designed but **not yet built** (qualitative branch, agreement multiplier).
+> Dashed boxes = designed but **not yet built** (qualitative branch, agreement multiplier, quant-researcher authoring loop).
 > Phase-1/2 trades **quant-solo only**; the official paper track record opens only after
 > the strategy passes the rigorous backtest gate (run `scripts/evaluate_holdout.py`).
 
@@ -29,7 +29,7 @@ flowchart LR
     subgraph ext["External services"]
         alpaca["Alpaca<br/>paper broker + market data"]
         resend["Resend<br/>transactional email"]
-        claude["Anthropic Claude<br/>(qualitative branch · future)"]
+        claude["Anthropic Claude<br/>(strategy authoring + qualitative branch · future)"]
     end
 
     db[("Postgres / SQLite<br/>durable state")]
@@ -138,6 +138,42 @@ flowchart TB
 
 ---
 
+## 3b. Quant-researcher authoring loop (offline · human-gated · designed)
+
+[ADR-0009](adr/0009-llm-authored-strategy-contract.md) lets an LLM **author**
+strategies, not just trade them. The loop is **offline and human-triggered** — it
+never runs in the trade pipeline, and it **stops at walk-forward**; touching the
+sealed holdout stays the separate, human-gated `evaluate_holdout.py`
+([ADR-0008](adr/0008-validation-data-discipline.md),
+[ADR-0010](adr/0010-effective-trial-accounting.md)).
+
+```mermaid
+flowchart LR
+    pm["Portfolio manager<br/>natural-language theory"] --> author
+    subgraph research["QUANT RESEARCHER — authoring loop (designed, not built)"]
+        author["LLM author · quant_research/author.py<br/>Claude · tool-use → StrategySpec"]
+        spec["DSL spec<br/>entry/exit over primitive registry<br/>+ 4-part economic rationale"]
+        compile["compile_spec → StrategyBase<br/>quant_research/compiler.py"]
+        nbhd["neighbor family<br/>deterministic ±1 step · K-cap"]
+        author --> spec --> compile --> nbhd
+    end
+    nbhd --> wf["WalkForwardCV (generalized)<br/>(config_identity, StrategyBase)<br/>DSR · PBO · effective-N"]
+    wf --> report["AuthoringReport<br/>FROZEN — eligible for holdout | FAIL — refine in-sample"]
+    report -->|persist trial + returns| db[("trial_log<br/>data-keyed search-N · returns_json")]
+    report -.->|human spends holdout_n, separately| holdout["evaluate_holdout.py<br/>(unchanged human gate)"]
+
+    classDef future stroke-dasharray:5 5,fill:#fafafa,color:#888;
+    class research,author,spec,compile,nbhd future;
+```
+
+> The LLM emits a **spec**, never code; a deterministic compiler/executor runs it
+> ([ADR-0002](adr/0002-hybrid-pipeline-architecture.md) boundary holds). Primitives
+> are vetted point-in-time-safe Python fns in a registry the LLM only *composes*.
+> Every strategy ever tested shares one **data-keyed** search-N counter; the
+> neighbor family is charged ~1 **effective trial** ([ADR-0010](adr/0010-effective-trial-accounting.md)).
+
+---
+
 ## 4. Module map
 
 | Layer | Module | Responsibility |
@@ -160,8 +196,13 @@ flowchart TB
 | Backtest | `backtest/validation.py` | WalkForwardCV (expanding window + embargo), HoldoutEvaluator (one-shot) |
 | Backtest | `backtest/data.py` | yfinance historical bar loader with disk cache |
 | Backtest | `backtest/trial_log.py` | Monotonic partition trial counters + trial/holdout logging |
+| Quant research | `quant_research/dsl.py` | StrategySpec (pydantic) + point-in-time primitive registry — _designed_ |
+| Quant research | `quant_research/compiler.py` | `compile_spec → StrategyBase` — _designed_ |
+| Quant research | `quant_research/neighborhood.py` | Deterministic ±1-step neighbor family (K-cap) for DSR/PBO — _designed_ |
+| Quant research | `quant_research/author.py` | LLM author: Anthropic tool-use → validated spec — _designed_ |
 | Scripts | `scripts/run_backtest.py` | Walk-forward search over param grid; logs every trial to DB |
 | Scripts | `scripts/evaluate_holdout.py` | Human-gated one-shot holdout evaluation; opens official track record |
+| Scripts | `scripts/author_strategy.py` | Human-triggered: PM theory → DSL spec → walk-forward → AuthoringReport — _designed_ |
 
 ---
 

@@ -4,6 +4,7 @@
 - Date: 2026-06-02
 - Deciders: Satwik (Portfolio Manager)
 - Extends: [ADR-0003](0003-two-branch-alpha-and-validation-asymmetry.md)
+- Amended by: [ADR-0010](0010-effective-trial-accounting.md) — effective-trial accounting supersedes the raw-count rule in §1
 
 ## Context
 
