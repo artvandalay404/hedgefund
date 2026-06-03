@@ -21,6 +21,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from typing import Callable
+
 from hedgefund.backtest.engine import Backtester, BacktestResult
 from hedgefund.backtest.metrics import (
     annualised_sharpe,
@@ -30,7 +32,7 @@ from hedgefund.backtest.metrics import (
     probabilistic_sharpe,
     probability_of_backtest_overfitting,
 )
-from hedgefund.backtest.strategy import BreakoutStrategy
+from hedgefund.backtest.strategy import BreakoutStrategy, StrategyBase
 
 
 EMBARGO_DAYS = 10   # trading days removed between IS tail and OOS start
@@ -45,6 +47,7 @@ class FoldResult:
     oos_max_dd: float
     oos_n_trades: int
     params: dict[str, Any]
+    oos_returns: list[float] = field(default_factory=list)  # for effective-N (ADR-0010)
 
 
 @dataclass
@@ -134,12 +137,18 @@ class WalkForwardCV:
         self,
         bars: pd.DataFrame,
         param_grid: list[dict],
+        strategy_factory: Callable[[dict], StrategyBase] | None = None,
     ) -> WalkForwardResult:
         """Run walk-forward over all folds and parameter combinations.
 
         bars: full historical bar DataFrame (IS only — holdout excluded upstream)
-        param_grid: list of parameter dicts for BreakoutStrategy
+        param_grid: list of config-identity dicts (BreakoutStrategy params or
+                    DSL config_identity dicts)
+        strategy_factory: callable mapping a config dict to a StrategyBase;
+                          defaults to BreakoutStrategy(**params)
         """
+        if strategy_factory is None:
+            strategy_factory = lambda p: BreakoutStrategy(**p)
         bars = bars.copy()
         bars["timestamp"] = pd.to_datetime(bars["timestamp"]).dt.tz_localize(None).dt.normalize()
         trading_days = sorted(bars["timestamp"].unique())
@@ -158,7 +167,7 @@ class WalkForwardCV:
                 continue
 
             for params in param_grid:
-                strat = BreakoutStrategy(**params)
+                strat = strategy_factory(params)
                 bt = Backtester(strat, **self.backtester_kwargs)
 
                 is_result = bt.run(is_bars)
@@ -174,6 +183,7 @@ class WalkForwardCV:
                     oos_max_dd=max_drawdown(oos_result.equity_curve),
                     oos_n_trades=oos_result.n_trades,
                     params=params,
+                    oos_returns=oos_result.returns.tolist(),
                 ))
 
         return WalkForwardResult(folds=results, param_grid=param_grid)
@@ -250,7 +260,10 @@ class HoldoutEvaluator:
         search_n: int,
         holdout_n: int,
         partition_name: str,
+        strategy_factory: Callable[[dict], StrategyBase] | None = None,
     ) -> HoldoutResult:
+        if strategy_factory is None:
+            strategy_factory = lambda p: BreakoutStrategy(**p)
         holdout_bars = bars[
             (pd.to_datetime(bars["timestamp"]).dt.date >= holdout_start)
             & (pd.to_datetime(bars["timestamp"]).dt.date <= holdout_end)
@@ -260,7 +273,7 @@ class HoldoutEvaluator:
         warmup_bars = bars[pd.to_datetime(bars["timestamp"]).dt.date < holdout_start]
         eval_bars = pd.concat([warmup_bars, holdout_bars], ignore_index=True)
 
-        strat = BreakoutStrategy(**params)
+        strat = strategy_factory(params)
         bt = Backtester(strat, **self.backtester_kwargs)
 
         full_result: BacktestResult = bt.run(eval_bars)

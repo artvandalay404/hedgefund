@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 # ── Default date range: IS partition (holdout kept sealed) ───────────────────
 DEFAULT_START = date(2015, 1, 1)
 DEFAULT_END = date(2022, 12, 31)
-IS_PARTITION_NAME = f"sp100_breakout_is_{DEFAULT_START}_{DEFAULT_END}"
+IS_PARTITION_NAME = "sp100_is_2015_2022"  # data-keyed, shared across all strategies (ADR-0010)
 
 # ── Parameter grid ────────────────────────────────────────────────────────────
 # Canonical params are the default row; grid tests small variations.

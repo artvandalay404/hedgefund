@@ -19,6 +19,7 @@ dependencies = [
     "yfinance>=0.2",
     "numpy>=1.26",
     "scipy>=1.11",
+    "anthropic>=0.42",
 ]
 
 [project.optional-dependencies]

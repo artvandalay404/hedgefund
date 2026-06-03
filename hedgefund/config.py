@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     kill_switch_drawdown: float = 0.10  # halt at -10% from peak
     kill_switch_daily_loss: float = 0.03  # pause day at -3%
 
+    # LLM authoring (ADR-0009)
+    anthropic_api_key: str = ""
+
     # Breakout signal parameters
     breakout_lookback: int = 20         # N-day high
     volume_multiplier: float = 1.5      # vs trailing avg
