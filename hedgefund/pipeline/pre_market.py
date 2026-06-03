@@ -5,7 +5,7 @@ open; the broker enforces stops and targets intraday.
 """
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import date
 
 import structlog
 
@@ -14,6 +14,7 @@ from hedgefund.config import settings
 from hedgefund.data.market import get_universe_bars
 from hedgefund.db.models import (
     EquityCurve, Order, Position, RunLog, Signal, get_session, get_state, set_state,
+    utcnow,
 )
 from hedgefund.pipeline.signals import scan_breakouts
 from hedgefund.reporting.email_report import (
@@ -29,7 +30,7 @@ def run_pre_market(broker: BrokerInterface) -> None:
     date_str = today.strftime("%A, %B %-d %Y")
     session = get_session()
 
-    run = RunLog(cycle="pre_market", started_at=datetime.utcnow())
+    run = RunLog(cycle="pre_market", started_at=utcnow())
     session.add(run)
     session.commit()
     log.info("cycle.start", cycle="pre_market", date=str(today))
@@ -124,8 +125,8 @@ def run_pre_market(broker: BrokerInterface) -> None:
                         status=broker_order.status,
                         stop_price=raw.stop_price,
                         target_price=raw.target_price,
-                        submitted_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow(),
+                        submitted_at=utcnow(),
+                        updated_at=utcnow(),
                     )
                     session.add(order_row)
                     placed_signals.append({
@@ -172,14 +173,14 @@ def run_pre_market(broker: BrokerInterface) -> None:
         send_email(f"[HedgeFund] Pre-Market Plan — {today}", html)
 
         run.status = "success"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utcnow()
         session.commit()
         log.info("cycle.complete", cycle="pre_market", orders=len(placed_orders))
 
     except Exception as exc:
         run.status = "error"
         run.notes = str(exc)
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utcnow()
         session.commit()
         log.error("cycle.error", cycle="pre_market", error=str(exc))
         raise

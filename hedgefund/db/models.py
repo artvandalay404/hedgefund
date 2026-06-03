@@ -1,4 +1,4 @@
-from datetime import datetime, date as date_type
+from datetime import datetime, date as date_type, timezone
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey,
@@ -7,6 +7,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from hedgefund.config import settings
+
+
+def utcnow() -> datetime:
+    """Naive UTC timestamp — drop-in replacement for the deprecated
+    utcnow().  Returns a tz-naive datetime to preserve the storage
+    semantics of the existing (timezone-unaware) DateTime columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
@@ -18,7 +25,7 @@ class RunLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cycle = Column(String(20), nullable=False)           # pre_market | post_market
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=False, default=utcnow)
     completed_at = Column(DateTime)
     status = Column(String(20), nullable=False, default="running")  # running|success|error
     notes = Column(Text)
@@ -38,7 +45,7 @@ class Signal(Base):
     base_qty = Column(Integer, nullable=False)
     final_qty = Column(Integer, nullable=False)
     agreement_multiplier = Column(Float, nullable=False, default=1.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class Order(Base):
@@ -54,8 +61,8 @@ class Order(Base):
     status = Column(String(20), nullable=False)
     stop_price = Column(Float)
     target_price = Column(Float)
-    submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    submitted_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 class Position(Base):
@@ -69,8 +76,8 @@ class Position(Base):
     branch = Column(String(20), nullable=False)  # attribution bucket
     stop_price = Column(Float, nullable=False)
     target_price = Column(Float, nullable=False)
-    opened_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    opened_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 class Trade(Base):
@@ -107,7 +114,7 @@ class SystemState(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String(50), unique=True, nullable=False)
     value = Column(Text)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 # ── Phase 2: backtesting / validation tables (ADR-0008) ──────────────────────
@@ -124,7 +131,7 @@ class PartitionCounter(Base):
     partition_name = Column(String(100), unique=True, nullable=False)
     search_n = Column(Integer, nullable=False, default=0)
     holdout_n = Column(Integer, nullable=False, default=0)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow)
 
 
 class BacktestTrial(Base):
@@ -141,7 +148,7 @@ class BacktestTrial(Base):
     max_drawdown = Column(Float)
     n_trades = Column(Integer, nullable=False, default=0)
     returns_json = Column(Text, nullable=False)   # JSON array of daily returns
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 class HoldoutEval(Base):
@@ -165,7 +172,7 @@ class HoldoutEval(Base):
     n_trades = Column(Integer, default=0)
     passed_gate = Column(Boolean)
     notes = Column(Text)
-    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    evaluated_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 # ── engine / session ──────────────────────────────────────────────────────────
@@ -195,7 +202,7 @@ def set_state(session, key: str, value: str) -> None:
     row = session.query(SystemState).filter_by(key=key).first()
     if row:
         row.value = value
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utcnow()
     else:
         session.add(SystemState(key=key, value=value))
     session.commit()

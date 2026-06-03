@@ -5,7 +5,7 @@ the equity curve, checks the kill switch, then sends the recap email.
 """
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import date
 
 import structlog
 
@@ -13,6 +13,7 @@ from hedgefund.broker.interface import BrokerInterface
 from hedgefund.config import settings
 from hedgefund.db.models import (
     EquityCurve, Order, Position, RunLog, Trade, get_session, get_state, set_state,
+    utcnow,
 )
 from hedgefund.reporting.email_report import build_post_market_html, send_email
 from hedgefund.risk.sizing import check_kill_switch
@@ -25,7 +26,7 @@ def run_post_market(broker: BrokerInterface) -> None:
     date_str = today.strftime("%A, %B %-d %Y")
     session = get_session()
 
-    run = RunLog(cycle="post_market", started_at=datetime.utcnow())
+    run = RunLog(cycle="post_market", started_at=utcnow())
     session.add(run)
     session.commit()
     log.info("cycle.start", cycle="post_market", date=str(today))
@@ -47,7 +48,7 @@ def run_post_market(broker: BrokerInterface) -> None:
             broker_order = broker_order_map.get(db_order.broker_order_id)
             if broker_order and broker_order.status != db_order.status:
                 db_order.status = broker_order.status
-                db_order.updated_at = datetime.utcnow()
+                db_order.updated_at = utcnow()
                 if broker_order.status == "filled":
                     fills_today.append({
                         "symbol": db_order.symbol,
@@ -74,7 +75,7 @@ def run_post_market(broker: BrokerInterface) -> None:
                 # Update current price
                 bp = broker_pos_map[db_pos.symbol]
                 db_pos.current_price = bp.current_price
-                db_pos.updated_at = datetime.utcnow()
+                db_pos.updated_at = utcnow()
 
         # Add any new positions opened today
         existing_symbols = {p.symbol for p in session.query(Position).all()}
@@ -95,8 +96,8 @@ def run_post_market(broker: BrokerInterface) -> None:
                     branch="quant-solo",
                     stop_price=order.stop_price if order else bp.avg_entry_price * 0.98,
                     target_price=order.target_price if order else bp.avg_entry_price * 1.04,
-                    opened_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
+                    opened_at=utcnow(),
+                    updated_at=utcnow(),
                 ))
 
         session.commit()
@@ -183,14 +184,14 @@ def run_post_market(broker: BrokerInterface) -> None:
         send_email(f"[HedgeFund] Post-Market Recap — {today}", html)
 
         run.status = "success"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utcnow()
         session.commit()
         log.info("cycle.complete", cycle="post_market", equity=equity, daily_pnl=daily_pnl)
 
     except Exception as exc:
         run.status = "error"
         run.notes = str(exc)
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utcnow()
         session.commit()
         log.error("cycle.error", cycle="post_market", error=str(exc))
         raise
@@ -218,7 +219,7 @@ def _record_closed_trade(session, db_pos: Position, today: date) -> None:
         entry_price=db_pos.avg_entry_price,
         exit_price=exit_price,
         entry_at=db_pos.opened_at,
-        exit_at=datetime.utcnow(),
+        exit_at=utcnow(),
         realized_pnl=realized_pnl,
         exit_reason="broker_closed",
     ))

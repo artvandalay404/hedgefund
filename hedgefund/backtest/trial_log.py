@@ -8,7 +8,6 @@ retesting against the same holdout is the forbidden move.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -17,6 +16,7 @@ from hedgefund.db.models import (
     HoldoutEval,
     PartitionCounter,
     get_session,
+    utcnow,
 )
 
 
@@ -55,7 +55,7 @@ class TrialLogger:
             row = PartitionCounter(partition_name=partition_name, search_n=0, holdout_n=0)
             self.session.add(row)
         row.search_n += 1
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utcnow()
         self.session.commit()
         return row.search_n
 
@@ -78,7 +78,7 @@ class TrialLogger:
             row = PartitionCounter(partition_name=partition_name, search_n=0, holdout_n=0)
             self.session.add(row)
         row.holdout_n += 1
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utcnow()
         self.session.commit()
         return row.holdout_n
 
@@ -107,7 +107,7 @@ class TrialLogger:
             max_drawdown=max_drawdown,
             n_trades=n_trades,
             returns_json=json.dumps([round(r, 8) for r in returns]),
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         self.session.add(trial)
         self.session.commit()
@@ -143,7 +143,7 @@ class TrialLogger:
             n_trades=n_trades,
             passed_gate=passed_gate,
             notes=notes,
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=utcnow(),
         )
         self.session.add(row)
         self.session.commit()
