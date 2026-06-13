@@ -56,6 +56,21 @@ Charge the harness-generated neighbor family as **~1 effective trial** via the
 (`N_eff = (Σλ)² / Σλ²` over the correlation eigenvalues). This requires
 persisting each trial's return series (`trial_log.returns_json`, currently `[]`).
 
+> **Amended 2026-06-06.** The participation ratio is no longer the *charge*; it
+> is a reported diagnostic. One **authoring run** — the canonical spec, its
+> ±1-step neighbour variants, and every walk-forward fold — charges the
+> partition a flat **1**, incremented once per run in `pipeline.run_authoring`.
+> Neighbours are a robustness check and folds are CV slices of a single
+> evaluation: *one bet, not N*. The participation ratio is retained as a
+> **guardrail** (an eff-N materially above 1 means the neighbourhood isn't
+> tight) and stays the candidate charge mechanism for #26's heterogeneous
+> populations, where a flat 1 would be gameable. Return-series persistence
+> (`trial_log.returns_json`) still stands, for that diagnostic and for #26.
+> **Scope note:** this covers the DSL authoring pipeline's robustness
+> neighbourhood only. A deliberate **parameter grid search** that *selects* a
+> best config (e.g. `scripts/run_backtest.py`'s `PARAM_GRID`) is genuine
+> multiple comparisons and is **not** collapsed to 1 — see §Consequences.
+
 **4. Full scope parked ([#26](https://github.com/artvandalay404/hedgefund/issues/26)).**
 Population-wide 1 − R² accrual plus a **saturation guard**: as the number of
 tested strategies approaches the number of trading days `T`, any vector becomes
@@ -73,6 +88,16 @@ remains the only genuinely-fresh out-of-sample.
 ## Consequences
 
 - Search-N becomes **fractional**; the DSR deflation consumes effective-N.
+  **Amended 2026-06-06:** under §3-amended each authoring run charges a flat
+  **1**, so per-partition search-N stays an **integer** counter and the
+  participation ratio is diagnostic, not consumed. (#26's population-wide 1−R²
+  accrual may reintroduce fractional charges.) `scripts/run_backtest.py`'s grid
+  search charges **one increment per distinct config** (not per fold-result).
+  And the in-sample DSR deflation in `WalkForwardResult.summary()` now consumes
+  that **search-N** (ADR-0008 §2), replacing an ad-hoc `len(folds)` count, while
+  the **holdout** DSR deflates by **holdout_n** (fixing a `search_n` value that
+  had been mis-passed as the return-series length). Both bring the code into
+  line with ADR-0008's existing contract — see ADR-0008 §2/§4.
 - `trial_log` must store per-trial return series (it has the `returns_json`
   column; runners must stop passing `[]`).
 - Effective-N is an **in-sample, linear** estimate — strategies orthogonal

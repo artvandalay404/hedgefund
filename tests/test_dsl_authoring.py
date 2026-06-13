@@ -248,13 +248,15 @@ class TestAuthoringPipelineWithoutLLM:
         for t in trials:
             assert json.dumps(json.loads(t.params_json), sort_keys=True) in valid_keys
 
-        # search_n counter is monotonic and matches the number of trials.
+        # Every fold-result is logged for the audit trail, but the partition is
+        # charged exactly ONE trial per authoring run — folds and neighbour
+        # variants are one bet, not N (ADR-0010 §3, amended).
         counter = (
             session.query(PartitionCounter)
             .filter_by(partition_name=self.PARTITION)
             .one()
         )
-        assert counter.search_n == len(run.wf_result.folds)
+        assert counter.search_n == 1
         assert counter.holdout_n == 0          # holdout never touched here
 
     def test_effective_n_within_bounds(self, session):

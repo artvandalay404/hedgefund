@@ -127,3 +127,6 @@ Five canonical triage roles, each using its default label string (`needs-triage`
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 Whenever an architectural change is made update block diagram under docs.
+
+### venv
+Make sure to work in the virtual environment. Usually it will be located at .venv. If its not active make sure to source it. If it doesnt exist make sure to create one and install all the dependencies to it.

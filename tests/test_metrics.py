@@ -100,6 +100,24 @@ class TestDeflatedSharpe:
         dsr = deflated_sharpe(2.0, sr_all, 252)
         assert 0.0 <= dsr <= 1.0
 
+    def test_n_trials_overrides_sample_size(self):
+        # σ is estimated from sr_all, but N comes from n_trials when given:
+        # the same dispersion sample with a far larger N deflates harder.
+        sr_all = [0.5, 1.0, 1.5, 2.0, 0.3]
+        dsr_small_n = deflated_sharpe(2.0, sr_all, 252, n_trials=len(sr_all))
+        dsr_large_n = deflated_sharpe(2.0, sr_all, 252, n_trials=1000)
+        assert dsr_large_n < dsr_small_n
+        # Default N falls back to len(sr_all) — backward compatible.
+        assert deflated_sharpe(2.0, sr_all, 252) == dsr_small_n
+
+    def test_n_trials_le_one_collapses_to_psr(self):
+        # A robustness neighbourhood charged ~1 trial (ADR-0010) — and the
+        # holdout at holdout_n=1 (ADR-0008 §2) — must get no deflation.
+        sr_all = [0.5, 1.0, 1.5, 2.0, 0.3]
+        psr = probabilistic_sharpe(2.0, 0.0, 252)
+        assert abs(deflated_sharpe(2.0, sr_all, 252, n_trials=1) - psr) < 1e-9
+        assert abs(deflated_sharpe(2.0, [2.0], 252, n_trials=5) - psr) < 1e-9
+
 
 # ── PBO ───────────────────────────────────────────────────────────────────────
 

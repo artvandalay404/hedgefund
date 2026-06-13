@@ -20,6 +20,7 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "anthropic>=0.42",
+    "pyarrow>=15.0",
 ]
 
 [project.optional-dependencies]

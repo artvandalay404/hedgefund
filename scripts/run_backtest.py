@@ -95,27 +95,38 @@ def main() -> None:
         return
 
     n_folds = len(set(f.fold_name for f in wf_result.folds))
-    log.info("Completed %d folds × %d configs = %d trials", n_folds, len(PARAM_GRID), len(wf_result.folds))
+    log.info("Completed %d folds × %d configs = %d fold-results", n_folds, len(PARAM_GRID), len(wf_result.folds))
 
-    # Log trials to DB
+    # Log trials to DB.  search_n is charged once per distinct config: a grid
+    # search of N configs that *selects* a best-IS one is N genuine trials, but
+    # the walk-forward folds are CV slices of a single evaluation and must not
+    # each increment the counter (ADR-0010 §3).  Every fold-result is still
+    # logged for the audit trail, stamped with its config's search_n.
+    folds_by_config: dict[str, list] = {}
+    for fold in wf_result.folds:
+        key = json.dumps(fold.params, sort_keys=True)
+        folds_by_config.setdefault(key, []).append(fold)
+
     with TrialLogger() as logger:
-        for fold in wf_result.folds:
+        for cfg_folds in folds_by_config.values():
             search_n = logger.increment_search_n(partition)
-            logger.log_trial(
-                strategy_name="BreakoutStrategy",
-                params=fold.params,
-                partition_name=partition,
-                search_n=search_n,
-                annualised_sharpe=fold.oos_sharpe,
-                annualised_return=fold.oos_return,
-                max_drawdown=fold.oos_max_dd,
-                n_trades=fold.oos_n_trades,
-                returns=[],   # fold-level returns not stored at this granularity
-            )
+            for fold in cfg_folds:
+                logger.log_trial(
+                    strategy_name="BreakoutStrategy",
+                    params=fold.params,
+                    partition_name=partition,
+                    search_n=search_n,
+                    annualised_sharpe=fold.oos_sharpe,
+                    annualised_return=fold.oos_return,
+                    max_drawdown=fold.oos_max_dd,
+                    n_trades=fold.oos_n_trades,
+                    returns=[],   # fold-level returns not stored at this granularity
+                )
         current_search_n = logger.get_search_n(partition)
 
-    # Summary
-    summary = wf_result.summary()
+    # Summary — deflate the in-sample DSR by the cumulative per-partition
+    # search-N (ADR-0008 §2), not by the fold-result count.
+    summary = wf_result.summary(n_trials=current_search_n)
     print("\n" + "=" * 60)
     print("WALK-FORWARD SUMMARY")
     print("=" * 60)

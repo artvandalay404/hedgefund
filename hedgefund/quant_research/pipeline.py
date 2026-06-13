@@ -89,16 +89,25 @@ def run_authoring(
         n_folds, len(all_configs), len(wf_result.folds),
     )
 
-    # ── Neighbourhood effective-N (ADR-0010 §3) ─────────────────────────────
+    # ── Neighbourhood effective-N — diagnostic only (ADR-0010 §3, amended) ──
+    # The participation ratio no longer *charges* the counter; it is a reported
+    # guardrail confirming the harness neighbour family really is ~1 bet (an
+    # eff-N well above 1 means the "robustness neighbourhood" isn't tight).  The
+    # machinery stays load-bearing for #26's population-wide accrual.
     config_returns: dict[str, list[float]] = {}
     for fold in wf_result.folds:
         key = json.dumps(fold.params, sort_keys=True)
         config_returns.setdefault(key, []).extend(fold.oos_returns)
     eff_n = participation_ratio(list(config_returns.values()))
 
-    # ── Log trials to the partition ─────────────────────────────────────────
+    # ── Charge the partition exactly ONE trial (ADR-0010 §3, amended) ───────
+    # The canonical spec, its ±1-step neighbour variants, and the walk-forward
+    # folds are *one bet, not N*: neighbours are a robustness check and folds are
+    # CV slices of a single evaluation.  So search_n moves by 1 per authoring
+    # run.  Every fold-result is still logged for the audit trail, all stamped
+    # with this one search_n.
+    sn = trial_logger.increment_search_n(partition)
     for fold in wf_result.folds:
-        sn = trial_logger.increment_search_n(partition)
         trial_logger.log_trial(
             strategy_name=f"DSL:{spec.name}",
             params=fold.params,
@@ -113,7 +122,7 @@ def run_authoring(
     cumulative_sn = float(trial_logger.get_search_n(partition))
 
     # ── Build report ─────────────────────────────────────────────────────────
-    summary = wf_result.summary()
+    summary = wf_result.summary(n_trials=cumulative_sn)
     status = (
         "FROZEN — eligible for holdout"
         if summary["passes_gate"]

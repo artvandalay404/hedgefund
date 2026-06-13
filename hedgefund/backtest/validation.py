@@ -71,8 +71,16 @@ class WalkForwardResult:
                 grid[fi][ci] = fr.oos_sharpe
         return grid
 
-    def summary(self) -> dict[str, Any]:
-        """Aggregate statistics across all folds for the canonical params."""
+    def summary(self, n_trials: float | None = None) -> dict[str, Any]:
+        """Aggregate statistics across all folds for the canonical params.
+
+        ``n_trials`` is the multiple-comparisons count N for the DSR deflation.
+        It defaults to the number of **distinct configs** evaluated in this run
+        (the honest within-run selection count) but should be the per-partition
+        **search-N** — the cumulative lifetime trial count the data remembers
+        (ADR-0008 §2/§4) — when a caller has it.  Folds are CV slices of a single
+        config and never count as trials (ADR-0010 §3).
+        """
         # Pick the param config that was best IS on average
         by_config: dict[str, list[FoldResult]] = {}
         for fr in self.folds:
@@ -83,21 +91,27 @@ class WalkForwardResult:
         best_folds = by_config[best_key]
 
         oos_sr = [f.oos_sharpe for f in best_folds]
-        all_oos_sr_all = [f.oos_sharpe for f in self.folds]
-        n_returns = sum(
-            f.oos_n_trades for f in best_folds
-        )  # proxy for effective sample size
-
         sr_mean = float(np.mean(oos_sr)) if oos_sr else float("nan")
         sr_returns = [s for s in oos_sr if not np.isnan(s)]
+
+        # Cross-trial dispersion σ is estimated across *configs* (one OOS Sharpe
+        # per config), not across fold-results: within-config fold spread is CV
+        # noise, not multiple-comparisons dispersion.
+        per_config_oos = [
+            float(np.mean([f.oos_sharpe for f in folds]))
+            for folds in by_config.values()
+        ]
+        n = n_trials if n_trials is not None else len(by_config)
+
         psr = probabilistic_sharpe(
             sr_mean, 0.0, max(len(sr_returns) * 63, 1),
             skew=float(np.array(sr_returns).mean() * 0),  # returns-level would need daily, use 0
             ex_kurtosis=0.0,
         )
         dsr = deflated_sharpe(
-            sr_mean, [f.oos_sharpe for f in self.folds],
+            sr_mean, per_config_oos,
             n_periods=max(len(sr_returns) * 63, 1),
+            n_trials=n,
         )
         pbo = probability_of_backtest_overfitting(self.oos_sharpes_by_config)
 
@@ -110,7 +124,7 @@ class WalkForwardResult:
             "pbo": pbo,
             "passes_gate": passes_gate(dsr, pbo),
             "n_folds": len(best_folds),
-            "n_trials": len(self.param_grid) * len(set(f.fold_name for f in self.folds)),
+            "n_trials": n,
         }
 
 
@@ -297,7 +311,15 @@ class HoldoutEvaluator:
         exc_kurt = float(pd.Series(r_arr).kurtosis()) if len(r_arr) > 3 else 0.0
 
         psr = probabilistic_sharpe(sr, 0.0, max(len(r_arr), 2), skew, exc_kurt)
-        dsr_val = deflated_sharpe(sr, [sr], search_n, skew, exc_kurt)
+        # The holdout is deflated by holdout_n, NOT search-N: a single frozen
+        # strategy touching the holdout once needs no multiple-comparisons
+        # deflation — independence is the protection (ADR-0008 §2).  search-N
+        # belongs to the in-sample gate (summary()).  n_periods is the return
+        # length, where the old call mis-slotted search_n.
+        dsr_val = deflated_sharpe(
+            sr, [sr], n_periods=max(len(r_arr), 2),
+            skew=skew, ex_kurtosis=exc_kurt, n_trials=holdout_n,
+        )
 
         from hedgefund.backtest.metrics import passes_gate as _passes
         gate = _passes(dsr_val, float("nan"))

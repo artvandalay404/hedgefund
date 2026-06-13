@@ -169,8 +169,10 @@ flowchart LR
 > The LLM emits a **spec**, never code; a deterministic compiler/executor runs it
 > ([ADR-0002](adr/0002-hybrid-pipeline-architecture.md) boundary holds). Primitives
 > are vetted point-in-time-safe Python fns in a registry the LLM only *composes*.
-> Every strategy ever tested shares one **data-keyed** search-N counter; the
-> neighbor family is charged ~1 **effective trial** ([ADR-0010](adr/0010-effective-trial-accounting.md)).
+> Every strategy ever tested shares one **data-keyed** search-N counter; one
+> authoring run — canonical spec, ±1-step neighbours, and all walk-forward folds
+> — charges it a flat **1** (one bet, not N); the participation-ratio eff-N is a
+> reported guardrail ([ADR-0010](adr/0010-effective-trial-accounting.md)).
 
 ---
 

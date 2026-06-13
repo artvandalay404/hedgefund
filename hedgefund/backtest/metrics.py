@@ -77,19 +77,30 @@ def deflated_sharpe(
     n_periods: int,
     skew: float = 0.0,
     ex_kurtosis: float = 0.0,
+    n_trials: float | None = None,
 ) -> float:
     """DSR: PSR with a multiple-comparisons-adjusted benchmark.
 
     Tests whether sr_best is statistically significant given that it was
-    selected as the best from len(sr_all) trials.
+    selected as the best from N trials.
+
+    `sr_all` is the sample of per-trial Sharpes used to estimate the cross-trial
+    dispersion σ.  `n_trials` is the multiple-comparisons count **N** for the
+    expected-max benchmark; it defaults to ``len(sr_all)`` but should be passed
+    explicitly when N differs from that in-memory sample — notably the
+    per-partition **search-N** (ADR-0008 §2), the cumulative lifetime trial
+    count, which is far larger than the handful of Sharpes any single run has on
+    hand to estimate σ.
 
     Benchmark = E[max SR under N iid null trials] (Bailey & de Prado 2014):
       = σ_trials × ( (1-γ)·Φ⁻¹(1 - 1/N) + γ·Φ⁻¹(1 - 1/(N·e)) )
     where γ = Euler-Mascheroni constant ≈ 0.5772.
     """
     all_sr = list(sr_all)
-    n_trials = len(all_sr)
-    if n_trials <= 1:
+    n = float(n_trials) if n_trials is not None else float(len(all_sr))
+    # Need ≥2 Sharpes to estimate σ and N>1 for an expected-max to mean anything;
+    # below that there is no multiple-comparisons penalty and DSR collapses to PSR.
+    if n <= 1 or len(all_sr) <= 1:
         return probabilistic_sharpe(sr_best, 0.0, n_periods, skew, ex_kurtosis)
 
     sigma_trials = float(np.std(all_sr, ddof=1)) or 1e-9
@@ -97,8 +108,8 @@ def deflated_sharpe(
     e = math.e
 
     # Expected maximum SR from N trials under no-edge null
-    q1 = stats.norm.ppf(1 - 1 / n_trials)
-    q2 = stats.norm.ppf(1 - 1 / (n_trials * e))
+    q1 = stats.norm.ppf(1 - 1 / n)
+    q2 = stats.norm.ppf(1 - 1 / (n * e))
     sr_benchmark = sigma_trials * (
         (1 - euler_mascheroni) * q1 + euler_mascheroni * q2
     )
